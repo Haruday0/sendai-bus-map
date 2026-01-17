@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>仙台バスマップ</title>
+    <title>宮城県バスナビ</title>
     <script src="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.js"></script>
     <link
       href="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.css"
@@ -35,7 +35,7 @@
         pointer-events: auto !important;
       }
 
-      /* バス停の丸（16pxに拡大） */
+      /* バス停の丸（16px） */
       .stop-dot {
         width: 16px;
         height: 16px;
@@ -46,7 +46,7 @@
         flex-shrink: 0;
       }
 
-      /* バス停名：アイコンの左側に配置（重なり防止のため距離を確保） */
+      /* バス停名：アイコンの左側に整列 */
       .stop-label {
         position: absolute;
         right: 22px; /* アイコン半径8px + 隙間分 */
@@ -63,7 +63,7 @@
         pointer-events: none;
       }
 
-      /* バス：当たり判定をしっかり持つコンテナ */
+      /* バス：当たり判定を持つコンテナ */
       .bus-marker-container {
         width: 40px;
         height: 40px;
@@ -286,6 +286,7 @@
         const nowSec =
           now.getHours() * 3600 + now.getMinutes() * 60 + now.getSeconds();
 
+        // 修正：JSONデータにあるすべての路線を自動でループ
         Object.keys(timetablesData).forEach((routeId) => {
           Object.keys(timetablesData[routeId]).forEach((tripId) => {
             const trip = timetablesData[routeId][tripId];
@@ -303,11 +304,12 @@
                 const el = document.createElement("div");
                 el.className = "bus-marker-container";
                 const rName = routesData[routeId]?.short_name || "";
+                // 看板に系統番号を追加
                 el.innerHTML = `<div class="bus-label">[${rName}] ${trip.headsign}行</div><img src="https://maps.google.com/mapfiles/ms/icons/bus.png" class="bus-img">`;
 
-                // バスタップイベントを確実に付与
                 const handler = (e) => {
                   e.stopPropagation();
+                  e.preventDefault();
                   selectBus(trip.headsign, tripId, routeId);
                 };
                 el.addEventListener("click", handler);
@@ -362,7 +364,6 @@
           const stop = stopsData[id];
           if (!bounds.contains([stop.lng, stop.lat])) return;
 
-          // ズーム16.5未満なら名前でグルーピング
           if (zoom < 16.5) {
             if (seen.has(stop.name)) return;
             seen.add(stop.name);
@@ -450,8 +451,8 @@
           ? `${trip.via} 経由`
           : "";
         document.getElementById("panel-title").innerText = `${headsign}行`;
-        document.getElementById("office-info").innerText =
-          extraData.offices[trip.office_id] || "";
+        const officeName = extraData.offices[trip.office_id] || "";
+        document.getElementById("office-info").innerText = officeName;
 
         content.innerHTML = "";
         const nowStr = new Date().toTimeString().split(" ")[0];

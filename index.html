@@ -35,6 +35,8 @@
         pointer-events: auto !important;
         z-index: 1000;
       }
+
+      /* バス停の丸（16px） */
       .stop-dot {
         width: 16px;
         height: 16px;
@@ -44,6 +46,8 @@
         box-sizing: border-box;
         flex-shrink: 0;
       }
+
+      /* バス停名：アイコンの左側に整列 */
       .stop-label {
         position: absolute;
         right: 22px;
@@ -60,7 +64,7 @@
         pointer-events: none;
       }
 
-      /* バス：当たり判定を持つコンテナ */
+      /* バス：当たり判定をしっかり持つコンテナ */
       .bus-marker-container {
         width: 40px;
         height: 40px;
@@ -71,11 +75,18 @@
         pointer-events: auto !important;
         z-index: 5000;
       }
+
+      /* バス画像 */
       .bus-img {
-        width: 36px;
-        height: 36px;
+        width: 34px;
+        height: 34px;
         pointer-events: none;
+        transition:
+          width 0.2s,
+          height 0.2s;
       }
+
+      /* バスの看板 */
       .bus-label {
         position: absolute;
         bottom: 42px;
@@ -91,6 +102,15 @@
         white-space: nowrap;
         box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
         pointer-events: none;
+      }
+
+      /* 縮小時スタイル */
+      .bus-marker-container.compact .bus-label {
+        display: none;
+      }
+      .bus-marker-container.compact .bus-img {
+        width: 22px;
+        height: 22px;
       }
 
       /* ボトムパネル */
@@ -181,6 +201,12 @@
       .item-info {
         flex: 1;
         font-size: 16px;
+      }
+      .item-platform {
+        font-size: 11px;
+        font-weight: normal;
+        color: #666;
+        margin-top: 2px;
       }
 
       /* 右上時計 */
@@ -289,10 +315,10 @@
       function updateClock() {
         const now = new Date();
         const days = ["日", "月", "火", "水", "木", "金", "土"];
-        document.getElementById("clock-date").innerText =
-          `${now.getMonth() + 1}/${now.getDate()}(${days[now.getDay()]})`;
-        document.getElementById("clock-time").innerText =
-          `${now.getHours()}:${now.getMinutes().toString().padStart(2, "0")}`;
+        const dateStr = `${now.getMonth() + 1}/${now.getDate()}(${days[now.getDay()]})`;
+        const timeStr = `${now.getHours()}:${now.getMinutes().toString().padStart(2, "0")}`;
+        document.getElementById("clock-date").innerText = dateStr;
+        document.getElementById("clock-time").innerText = timeStr;
       }
 
       function isServiceRunningToday(serviceId) {
@@ -321,36 +347,55 @@
         const now = new Date();
         const nowSec =
           now.getHours() * 3600 + now.getMinutes() * 60 + now.getSeconds();
+        const zoom = map.getZoom();
+        const isCompact = zoom < 15.0;
+
         Object.keys(timetablesData).forEach((routeId) => {
           Object.keys(timetablesData[routeId]).forEach((tripId) => {
             const trip = timetablesData[routeId][tripId];
+            if (currentPanelTrip && tripId !== currentPanelTrip.tripId) {
+              if (busMarkers[tripId]) {
+                busMarkers[tripId].remove();
+                delete busMarkers[tripId];
+              }
+              return;
+            }
             if (!isServiceRunningToday(trip.service_id)) return;
             const stops = trip.stops;
+
             if (
               nowSec >= timeToSec(stops[0].time) &&
               nowSec <= timeToSec(stops[stops.length - 1].time)
             ) {
               const pos = calculateBusPos(trip, nowSec);
               if (!pos) return;
+
               if (!busMarkers[tripId]) {
                 const el = document.createElement("div");
                 el.className = "bus-marker-container";
-                const rName = routesData[routeId]?.short_name || routeId;
-                el.innerHTML = `<div class="bus-label">${rName} ${trip.headsign}行</div><img src="https://maps.google.com/mapfiles/ms/icons/bus.png" class="bus-img">`;
+                const rName = routesData[routeId]?.short_name || "";
+                el.innerHTML = `<div class="bus-label">[${rName}] ${trip.headsign}行</div><img src="https://maps.google.com/mapfiles/ms/icons/bus.png" class="bus-img">`;
+
                 const handler = (e) => {
                   e.stopPropagation();
                   selectBus(trip.headsign, tripId, routeId);
                 };
                 el.addEventListener("click", handler);
                 el.addEventListener("touchstart", handler);
+
                 busMarkers[tripId] = new maplibregl.Marker({
                   element: el,
-                  offset: [0, -18],
                 })
                   .setLngLat(pos)
                   .addTo(map);
               } else {
                 busMarkers[tripId].setLngLat(pos);
+              }
+
+              if (isCompact) {
+                busMarkers[tripId].getElement().classList.add("compact");
+              } else {
+                busMarkers[tripId].getElement().classList.remove("compact");
               }
             } else if (busMarkers[tripId]) {
               busMarkers[tripId].remove();
@@ -367,6 +412,7 @@
           return null;
         const coords = shapeData.coordinates;
         const indices = shapeData.stop_indices;
+
         for (let i = 0; i < trip.stops.length - 1; i++) {
           const s1 = timeToSec(trip.stops[i].time),
             s2 = timeToSec(trip.stops[i + 1].time);
@@ -386,18 +432,18 @@
         const bounds = map.getBounds();
         stopMarkers.forEach((m) => m.remove());
         stopMarkers = [];
+
         const activeTripStops = activeRouteStopIds;
         const seen = new Set();
 
-        // アイコンとラベルを同時に出す閾値を13.5に統一
-        const showThreshold = 13.5;
-
         Object.keys(stopsData).forEach((id) => {
           const stop = stopsData[id];
-          const isSelected = activeTripStops.includes(id);
+          const isSelectedRouteStop = activeTripStops.includes(id);
 
-          if (!bounds.contains([stop.lng, stop.lat]) && !isSelected) return;
-          if (zoom < showThreshold && !isSelected) return;
+          if (currentPanelTrip && !isSelectedRouteStop) return;
+          if (!bounds.contains([stop.lng, stop.lat]) && !isSelectedRouteStop)
+            return;
+          if (zoom < 13 && !isSelectedRouteStop) return;
 
           if (zoom < 16.5) {
             if (seen.has(stop.name)) return;
@@ -408,18 +454,22 @@
           el.className = "stop-marker-container";
           const label = document.createElement("div");
           label.className = "stop-label";
-          // ズーム13.5以上ならラベルも表示する（アイコンと同期）
-          label.innerText =
-            stop.name +
-            (zoom >= 16.5 && stop.platform ? ` (${stop.platform}番)` : "");
+
+          if (zoom >= 15.0 || isSelectedRouteStop) {
+            label.innerText =
+              stop.name +
+              (zoom >= 16.5 && stop.platform ? ` (${stop.platform}番)` : "");
+            el.appendChild(label);
+          }
 
           const dot = document.createElement("div");
           dot.className = "stop-dot";
-          el.appendChild(label);
           el.appendChild(dot);
+
           const marker = new maplibregl.Marker({ element: el })
             .setLngLat([stop.lng, stop.lat])
             .addTo(map);
+
           const handler = (e) => {
             e.stopPropagation();
             showNextBuses(id);
@@ -434,9 +484,9 @@
         const stop = stopsData[stopId];
         currentPanelTrip = null;
         document.getElementById("panel-via").innerText = "";
-        const zoom = map.getZoom();
 
-        // ★修正ポイント：ズームレベルに応じて「まとめ検索」か「単独検索」か分岐
+        // ★修正ポイント：ズームレベルに応じて検索対象のIDを変える
+        const zoom = map.getZoom();
         const isGrouped = zoom < 16.5;
         const targetIds = isGrouped
           ? Object.keys(stopsData).filter(
@@ -452,45 +502,49 @@
         const content = document.getElementById("panel-content");
         content.innerHTML = "";
         const nowStr = new Date().toTimeString().split(" ")[0];
-        const arrivals = [];
 
+        const allArrivals = [];
         Object.keys(timetablesData).forEach((rid) => {
           Object.keys(timetablesData[rid]).forEach((tid) => {
             const trip = timetablesData[rid][tid];
             if (!isServiceRunningToday(trip.service_id)) return;
-            // 指定されたID（単数または名前一致すべて）のいずれかに一致するかチェック
+            // 修正：targetIdsに含まれる停留所のいずれかに停まるかチェック
             const st = trip.stops.find((s) => targetIds.includes(s.stop_id));
             if (st && st.time > nowStr) {
-              arrivals.push({
+              const pole = stopsData[st.stop_id];
+              allArrivals.push({
                 time: st.time,
                 route_id: rid,
                 trip_id: tid,
                 headsign: trip.headsign,
-                platform: stopsData[st.stop_id].platform, // リスト用のりば情報
+                platform: pole.platform,
+                actual_stop_id: st.stop_id,
               });
             }
           });
         });
 
-        if (arrivals.length === 0) {
+        if (allArrivals.length === 0) {
           content.innerHTML =
             "<div style='padding:40px; text-align:center; color:#999;'>本日の運行は終了しました</div>";
         } else {
-          arrivals
+          allArrivals
             .sort((a, b) => a.time.localeCompare(b.time))
             .slice(0, 10)
             .forEach((bus) => {
               const div = document.createElement("div");
               div.className = "item-row future";
-              const rName =
-                routesData[bus.route_id]?.short_name || bus.route_id;
-              // リストにはのりば番号を常時表示
-              const pInfo = bus.platform
-                ? `<div style="font-size:11px;color:#666;">${bus.platform}番のりば</div>`
+              const platformLabel = bus.platform
+                ? `<div class="item-platform">${bus.platform}番のりば</div>`
                 : "";
-              div.innerHTML = `<div class="item-time">${bus.time.substring(0, 5)}</div><div class="item-info">${rName}系統 ${bus.headsign}行${pInfo}</div>`;
+              div.innerHTML = `<div class="item-time">${bus.time.substring(0, 5)}</div><div class="item-info">${routesData[bus.route_id].short_name || bus.route_id}系統 ${bus.headsign}行${platformLabel}</div>`;
               div.onclick = () =>
-                selectBus(bus.headsign, bus.trip_id, bus.route_id, stopId);
+                selectBus(
+                  bus.headsign,
+                  bus.trip_id,
+                  bus.route_id,
+                  bus.actual_stop_id,
+                );
               content.appendChild(div);
             });
         }
@@ -502,16 +556,16 @@
         const trip = timetablesData[routeId][tripId];
         currentPanelTrip = { tripId, routeId, highlightId };
         activeRouteStopIds = trip.stops.map((s) => s.stop_id);
+
         const routeInfo = routesData[routeId];
         const content = document.getElementById("panel-content");
         document.getElementById("panel-via").innerText = trip.via
           ? `${trip.via} 経由`
           : "";
-        const rName = routeInfo?.short_name || routeId;
-        document.getElementById("panel-title").innerText =
-          `${rName} ${headsign}行`;
-        document.getElementById("office-info").innerText =
-          extraData.offices[trip.office_id] || "";
+        document.getElementById("panel-title").innerText = `${headsign}行`;
+        const officeName = extraData.offices[trip.office_id] || "";
+        document.getElementById("office-info").innerText = officeName;
+
         content.innerHTML = "";
         const nowStr = new Date().toTimeString().split(" ")[0];
         let targetScrollEl = null;
@@ -520,13 +574,17 @@
           const next = trip.stops.find((st) => st.time > nowStr);
           if (next) nextStopId = next.stop_id;
         }
+
         trip.stops.forEach((st, index) => {
           const s = stopsData[st.stop_id];
           const isPast = st.time < nowStr;
           const div = document.createElement("div");
           div.id = `row-${index}`;
           div.className = `item-row ${isPast ? "past" : "future"} ${st.stop_id === highlightId ? "highlight" : ""} ${!highlightId && st.stop_id === nextStopId ? "next-stop" : ""}`;
-          div.innerHTML = `<div class="item-time">${st.time.substring(0, 5)}</div><div class="item-info">${s ? s.name : "..."}</div>`;
+          const platformLabel = s.platform
+            ? `<div class="item-platform">${s.platform}番のりば</div>`
+            : "";
+          div.innerHTML = `<div class="item-time">${st.time.substring(0, 5)}</div><div class="item-info">${s ? s.name : "..."}${platformLabel}</div>`;
           div.onclick = (e) => {
             e.stopPropagation();
             map.flyTo({
@@ -540,6 +598,7 @@
           if (st.stop_id === nextStopId || st.stop_id === highlightId)
             targetScrollEl = div;
         });
+
         const patternKey = trip.stops.map((s) => s.stop_id).join("|");
         const shape = shapesData[patternKey];
         if (shape) {
@@ -557,7 +616,7 @@
             type: "line",
             source: "route",
             paint: {
-              "line-color": "#" + (routesData[routeId]?.color || "00703c"),
+              "line-color": "#" + (routeInfo.color || "00703c"),
               "line-width": 8,
               "line-opacity": 0.6,
             },
@@ -565,11 +624,13 @@
         }
         document.getElementById("bottom-panel").classList.add("open");
         updateStopMarkers();
-        if (targetScrollEl)
+
+        if (targetScrollEl) {
           setTimeout(() => {
             content.scrollTop =
               targetScrollEl.offsetTop - content.clientHeight / 2 + 40;
           }, 100);
+        }
       }
 
       function updatePanelState() {
@@ -588,7 +649,9 @@
             isNextBusStop = true;
             nextStopFound = true;
           }
-          div.className = `item-row ${isPast ? "past" : "future"} ${isHighlight ? "highlight" : ""} ${isNextBusStop ? "next-stop" : ""}`;
+          div.className = `item-row ${isPast ? "past" : "future"} ${
+            isHighlight ? "highlight" : ""
+          } ${isNextBusStop ? "next-stop" : ""}`;
         });
       }
 

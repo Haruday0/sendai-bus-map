@@ -9,6 +9,10 @@
       href="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.css"
       rel="stylesheet"
     />
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200"
+    />
     <style>
       html,
       body {
@@ -76,14 +80,28 @@
         z-index: 5000;
       }
 
-      /* バス画像 */
-      .bus-img {
+      /* バスアイコン (Material Symbols) */
+      .material-symbols-outlined.bus-icon {
         width: 34px;
         height: 34px;
+        font-size: 34px;
+        color: #00703c;
         pointer-events: none;
-        transition:
-          width 0.2s,
-          height 0.2s;
+        transition: font-size 0.2s;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        text-shadow:
+          2px 2px 0 #fff,
+          -2px 2px 0 #fff,
+          2px -2px 0 #fff,
+          -2px -2px 0 #fff,
+          0 0 4px rgba(0, 0, 0, 0.2);
+        font-variation-settings:
+          "FILL" 1,
+          "wght" 400,
+          "GRAD" 0,
+          "opsz" 40;
       }
 
       /* バスの看板 */
@@ -108,9 +126,10 @@
       .bus-marker-container.compact .bus-label {
         display: none;
       }
-      .bus-marker-container.compact .bus-img {
+      .bus-marker-container.compact .material-symbols-outlined.bus-icon {
         width: 22px;
         height: 22px;
+        font-size: 22px;
       }
 
       /* ボトムパネル */
@@ -234,9 +253,72 @@
         color: #333;
         line-height: 1.1;
       }
+
+      /* 右下クレジット：時計と同じ自作ロジック */
+      #attribution-container {
+        position: absolute;
+        bottom: 10px;
+        right: 10px;
+        z-index: 5500;
+        display: flex;
+        align-items: center;
+        pointer-events: auto; /* クリックできるようにする */
+      }
+      #attribution-text {
+        display: none; /* 初期は隠す */
+        background: rgba(255, 255, 255, 0.85);
+        padding: 2px 8px;
+        border-radius: 4px;
+        margin-right: 5px;
+        font-size: 11px;
+        border: 1px solid #ccc;
+        box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
+      }
+      #attribution-btn {
+        width: 20px;
+        height: 20px;
+        background: rgba(255, 255, 255, 0.85);
+        border-radius: 50%;
+        border: 1px solid #ccc;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
+        padding: 0;
+      }
+      .material-symbols-outlined {
+        font-variation-settings:
+          "FILL" 1,
+          "wght" 400,
+          "GRAD" 0,
+          "opsz" 20;
+        font-size: 18px;
+        color: #555;
+      }
+      .attribution-link {
+        color: #555;
+        text-decoration: none;
+      }
     </style>
   </head>
   <body>
+    <!-- 自作クレジット -->
+    <div id="attribution-container">
+      <div id="attribution-text">
+        <a
+          href="https://maps.gsi.go.jp/development/ichiran.html"
+          target="_blank"
+          rel="noopener"
+          class="attribution-link"
+          >国土地理院</a
+        >
+      </div>
+      <div id="attribution-btn" onclick="toggleAttribution()">
+        <span class="material-symbols-outlined">info</span>
+      </div>
+    </div>
+
     <div id="clock-container">
       <div id="clock-date"></div>
       <div id="clock-time"></div>
@@ -265,6 +347,12 @@
       let currentPanelTrip = null;
       let activeRouteStopIds = [];
 
+      // クレジット表示の切り替え関数
+      function toggleAttribution() {
+        const text = document.getElementById("attribution-text");
+        text.style.display = text.style.display === "block" ? "none" : "block";
+      }
+
       async function init() {
         stopsData = await fetch("stops.json").then((res) => res.json());
         shapesData = await fetch("shapes.json").then((res) => res.json());
@@ -286,7 +374,7 @@
                   "https://cyberjapandata.gsi.go.jp/xyz/pale/{z}/{x}/{y}.png",
                 ],
                 tileSize: 256,
-                attribution: "国土地理院",
+                attribution: "", // 空にして自作要素を使う
                 maxzoom: 18,
               },
             },
@@ -294,6 +382,7 @@
           },
           center: [140.8824, 38.2601],
           zoom: 15,
+          attributionControl: false, // デフォルトを完全に無効化
         });
 
         map.on("load", () => {
@@ -373,15 +462,15 @@
               if (!busMarkers[tripId]) {
                 const el = document.createElement("div");
                 el.className = "bus-marker-container";
-                const rName = routesData[routeId]?.short_name || "";
-                el.innerHTML = `<div class="bus-label">[${rName}] ${trip.headsign}行</div><img src="https://maps.google.com/mapfiles/ms/icons/bus.png" class="bus-img">`;
+                const rName = routesData[routeId]?.short_name || routeId;
+                el.innerHTML = `<div class="bus-label">[${rName}] ${trip.headsign}行</div><span class="material-symbols-outlined bus-icon">directions_bus</span>`;
 
                 const handler = (e) => {
                   e.stopPropagation();
                   selectBus(trip.headsign, tripId, routeId);
                 };
                 el.addEventListener("click", handler);
-                el.addEventListener("touchstart", handler);
+                el.addEventListener("touchstart", handler, { passive: true });
 
                 busMarkers[tripId] = new maplibregl.Marker({
                   element: el,
@@ -443,7 +532,7 @@
           if (currentPanelTrip && !isSelectedRouteStop) return;
           if (!bounds.contains([stop.lng, stop.lat]) && !isSelectedRouteStop)
             return;
-          if (zoom < 13 && !isSelectedRouteStop) return;
+          if (zoom < 13.5 && !isSelectedRouteStop) return;
 
           if (zoom < 16.5) {
             if (seen.has(stop.name)) return;
@@ -452,10 +541,11 @@
 
           const el = document.createElement("div");
           el.className = "stop-marker-container";
+
           const label = document.createElement("div");
           label.className = "stop-label";
 
-          if (zoom >= 15.0 || isSelectedRouteStop) {
+          if (zoom >= 13.5 || isSelectedRouteStop) {
             label.innerText =
               stop.name +
               (zoom >= 16.5 && stop.platform ? ` (${stop.platform}番)` : "");
@@ -464,6 +554,7 @@
 
           const dot = document.createElement("div");
           dot.className = "stop-dot";
+
           el.appendChild(dot);
 
           const marker = new maplibregl.Marker({ element: el })
@@ -475,7 +566,7 @@
             showNextBuses(id);
           };
           el.addEventListener("click", handler);
-          el.addEventListener("touchstart", handler);
+          el.addEventListener("touchstart", handler, { passive: true });
           stopMarkers.push(marker);
         });
       }
@@ -485,7 +576,6 @@
         currentPanelTrip = null;
         document.getElementById("panel-via").innerText = "";
 
-        // ★修正ポイント：ズームレベルに応じて検索対象のIDを変える
         const zoom = map.getZoom();
         const isGrouped = zoom < 16.5;
         const targetIds = isGrouped
@@ -508,7 +598,6 @@
           Object.keys(timetablesData[rid]).forEach((tid) => {
             const trip = timetablesData[rid][tid];
             if (!isServiceRunningToday(trip.service_id)) return;
-            // 修正：targetIdsに含まれる停留所のいずれかに停まるかチェック
             const st = trip.stops.find((s) => targetIds.includes(s.stop_id));
             if (st && st.time > nowStr) {
               const pole = stopsData[st.stop_id];
@@ -537,7 +626,7 @@
               const platformLabel = bus.platform
                 ? `<div class="item-platform">${bus.platform}番のりば</div>`
                 : "";
-              div.innerHTML = `<div class="item-time">${bus.time.substring(0, 5)}</div><div class="item-info">${routesData[bus.route_id].short_name || bus.route_id}系統 ${bus.headsign}行${platformLabel}</div>`;
+              div.innerHTML = `<div class="item-time">${bus.time.substring(0, 5)}</div><div class="item-info">${routesData[bus.route_id]?.short_name || bus.route_id}系統 ${bus.headsign}行${platformLabel}</div>`;
               div.onclick = () =>
                 selectBus(
                   bus.headsign,

@@ -2,6 +2,7 @@
 <html lang="ja">
   <head>
     <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>バスルートエディタ</title>
     <script src="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.js"></script>
     <link
@@ -43,39 +44,43 @@
         padding-bottom: 10px;
       }
 
-      .step-container {
+      /* バス停リスト */
+      #stop-list {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
         margin-bottom: 20px;
-        padding: 15px;
-        border-radius: 8px;
-        border: 2px solid #eee;
-        transition: 0.3s;
       }
-      .step-container.active {
-        border-color: #00703c;
-        background: #f0fdf4;
+      .stop-item {
+        display: flex;
+        align-items: center;
+        background: #f9f9f9;
+        padding: 10px;
+        border-radius: 6px;
+        border: 1px solid #ddd;
+        font-size: 13px;
+        justify-content: space-between;
       }
-      .step-title {
+      .stop-item.start {
+        border-left: 5px solid #00703c;
+      }
+      .stop-item.end {
+        border-left: 5px solid #d32f2f;
+      }
+      .stop-item.via {
+        border-left: 5px solid #ffa000;
+      }
+      .stop-info {
+        display: flex;
+        flex-direction: column;
+      }
+      .stop-name {
         font-weight: bold;
-        margin-bottom: 8px;
-        display: flex;
-        align-items: center;
-        gap: 8px;
+        color: #333;
       }
-      .step-badge {
-        background: #00703c;
-        color: white;
-        width: 24px;
-        height: 24px;
-        border-radius: 50%;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        font-size: 14px;
-      }
-      .step-desc {
-        font-size: 0.85em;
+      .stop-id {
+        font-size: 11px;
         color: #666;
-        margin-bottom: 10px;
       }
 
       .info-box {
@@ -133,6 +138,17 @@
       button.danger {
         background: #d32f2f;
         color: white;
+      }
+      button.icon-btn {
+        padding: 4px;
+        background: transparent;
+        color: #999;
+        border: 1px solid #ddd;
+      }
+      button.icon-btn:hover {
+        color: #d32f2f;
+        border-color: #d32f2f;
+        background: #fff0f0;
       }
 
       .mode-switch {
@@ -196,6 +212,15 @@
         color: #f00;
       }
 
+      button.undo-btn {
+        width: 100%;
+        margin-bottom: 10px;
+      }
+      .undo-icon {
+        vertical-align: bottom;
+        font-size: 18px;
+      }
+
       .maplibregl-popup {
         z-index: 6000;
       }
@@ -213,6 +238,9 @@
         border: none;
         border-radius: 4px;
         cursor: pointer;
+      }
+      .popup-btn:hover {
+        opacity: 0.9;
       }
 
       /* レイヤーメニュー UI */
@@ -305,39 +333,25 @@
     <div id="sidebar">
       <h2>ルートエディタ</h2>
 
-      <div id="step-1" class="step-container active">
-        <div class="step-title">
-          <span class="step-badge">1</span> 始点を選択
-        </div>
-        <div class="step-desc">バス停をクリックして「始点」に設定。</div>
-        <div id="start-info" class="info-box">未選択</div>
+      <div class="mode-switch">
+        <label>
+          <input type="checkbox" id="straight-mode" checked />
+          直線モード (手動)
+        </label>
       </div>
 
-      <div id="step-2" class="step-container">
-        <div class="step-title">
-          <span class="step-badge">2</span> ルートを描く
-        </div>
-        <div class="step-desc">
-          適宜モードを切り替えながら、クリックして道を作ります。
-        </div>
-        <div class="mode-switch">
-          <label
-            ><input type="checkbox" id="straight-mode" checked /> 直線モード
-            (手動)</label
-          >
-        </div>
-        <button class="secondary" onclick="undo()" style="width: 100%">
-          一歩戻る
-        </button>
+      <div id="stop-list">
+        <!-- JSで動的に追加 -->
       </div>
 
-      <div id="step-3" class="step-container">
-        <div class="step-title">
-          <span class="step-badge">3</span> 終点を選択
-        </div>
-        <div class="step-desc">最後のバス停をクリックして「終点」に設定。</div>
-        <div id="end-info" class="info-box">未選択</div>
+      <div class="info-box" id="guide-msg">
+        地図上のバス停をクリックして、ルートに追加してください。
       </div>
+
+      <button class="secondary undo-btn" onclick="undo()">
+        <span class="material-symbols-outlined undo-icon">undo</span>
+        直前の操作を取り消す
+      </button>
 
       <textarea
         id="output"
@@ -354,19 +368,17 @@
         >
           JSON データをコピー
         </button>
-        <button class="danger" onclick="resetAll()">最初からやり直す</button>
+        <button class="danger" onclick="resetAll()">すべてリセット</button>
       </div>
     </div>
 
     <script>
       let stopsData = {};
-      let currentStep = "START";
-      let startStopId = null;
-      let endStopId = null;
+      let selectedStops = []; // { id, name, lng, lat } のリスト
       let waypoints = []; // クリックした点 [lng, lat]
       let segments = []; // 各区間の全座標列のリスト
-      let markers = []; // waypoint 各点のマーカー
-      let stopMarkers = {};
+      let markers = []; // waypoint 各点のマーカー（赤い点）
+      let stopMarkers = {}; // 全バス停マーカー
 
       const map = new maplibregl.Map({
         container: "map",
@@ -472,55 +484,68 @@
           const dot = document.createElement("div");
           dot.className = "stop-dot";
           el.appendChild(dot);
+
+          // クリック時のイベント
+          el.onclick = (e) => {
+            e.stopPropagation(); // マップのクリックイベントへの伝播を防ぐ
+            addStopToRoute(id);
+          };
+
           const marker = new maplibregl.Marker({ element: el })
             .setLngLat([stop.lng, stop.lat])
-            .setPopup(
-              new maplibregl.Popup({ offset: 10 }).setHTML(`
-                        <b>${stop.name}</b><br><small>${id} / ${stop.platform || "-"}番</small><br>
-                        <button class="popup-btn" onclick="selectStop('${id}', 'START')">始点に設定</button>
-                        <button class="popup-btn" style="background:#444" onclick="selectStop('${id}', 'END')">終点に設定</button>
-                    `),
-            )
             .addTo(map);
           stopMarkers[id] = marker;
         });
       }
 
-      window.selectStop = async (id, type) => {
+      // バス停をルートに追加
+      async function addStopToRoute(id) {
         const stop = stopsData[id];
-        if (type === "START") {
-          startStopId = id;
-          document.getElementById("start-info").innerText =
-            `[${id}] ${stop.name}`;
-          document
-            .querySelectorAll(".stop-marker-container")
-            .forEach((el) => el.classList.remove("selected"));
-          stopMarkers[id].getElement().classList.add("selected");
-          waypoints = [[stop.lng, stop.lat]];
-          segments = [];
-          currentStep = "DRAWING";
-          updateStepUI();
-          drawRoute();
-        } else if (type === "END") {
-          if (!startStopId) return alert("先に始点を選択してください。");
-          endStopId = id;
-          document.getElementById("end-info").innerText =
-            `[${id}] ${stop.name}`;
-          await addPoint([stop.lng, stop.lat]);
-          currentStep = "COMPLETED";
-          updateStepUI();
-          updateOutput();
-        }
-        map.getCanvas().focus();
-      };
 
+        // 既に直前に追加されたバス停と同じなら無視（連打防止）
+        if (
+          selectedStops.length > 0 &&
+          selectedStops[selectedStops.length - 1].id === id
+        ) {
+          return;
+        }
+
+        const newLngLat = [stop.lng, stop.lat];
+
+        // ルート描画 (2つ目以降の場合、直前の点からの経路を追加)
+        if (waypoints.length > 0) {
+          await addPathSegment(newLngLat);
+        } else {
+          // 最初の点
+          waypoints.push(newLngLat);
+          // 始点にはマーカーを置かない（バス停マーカーがあるため）
+        }
+
+        selectedStops.push({
+          id: id,
+          name: stop.name,
+          lng: stop.lng,
+          lat: stop.lat,
+        });
+
+        // UI更新
+        updateStopListUI();
+        updateOutput();
+      }
+
+      // 地図上の任意地点をクリックしたとき
       map.on("click", async (e) => {
-        if (currentStep !== "DRAWING") return;
+        // 少なくとも始点が選択されていなければ、途中経路は描けない
+        if (selectedStops.length === 0) {
+          alert("まずは始点となるバス停をクリックしてください。");
+          return;
+        }
         const lngLat = [e.lngLat.lng, e.lngLat.lat];
-        await addPoint(lngLat);
+        await addPathSegment(lngLat, true); // true = 中間点（waypoint）として追加
       });
 
-      async function addPoint(newLngLat) {
+      // 経路区間を追加する関数
+      async function addPathSegment(newLngLat, isWaypoint = false) {
         const isStraight = document.getElementById("straight-mode").checked;
         const prevPoint = waypoints[waypoints.length - 1];
 
@@ -545,14 +570,60 @@
         waypoints.push(newLngLat);
         segments.push(segmentCoords);
 
-        // マーカー配置
-        const marker = new maplibregl.Marker({ color: "#d32f2f" })
-          .setLngLat(newLngLat)
-          .addTo(map);
-        markers.push(marker);
+        // 中間点（地図クリック）なら赤いマーカーを表示
+        if (isWaypoint) {
+          const marker = new maplibregl.Marker({ color: "#d32f2f", scale: 0.6 })
+            .setLngLat(newLngLat)
+            .addTo(map);
+          markers.push({ type: "waypoint", marker: marker });
+        } else {
+          // バス停追加の場合、マーカー管理用配列にはnullを入れておく（undo用）
+          markers.push({ type: "stop", marker: null });
+        }
 
         drawRoute();
         updateOutput();
+      }
+
+      function updateStopListUI() {
+        const listEl = document.getElementById("stop-list");
+        listEl.innerHTML = "";
+
+        selectedStops.forEach((stop, index) => {
+          const div = document.createElement("div");
+          let typeClass = "via";
+          let label = "経由";
+          if (index === 0) {
+            typeClass = "start";
+            label = "始点";
+          } else if (
+            index === selectedStops.length - 1 &&
+            selectedStops.length > 1
+          ) {
+            typeClass = "end";
+            label = "終点(仮)";
+          }
+
+          div.className = `stop-item ${typeClass}`;
+          div.innerHTML = `
+            <div class="stop-info">
+              <span class="stop-name">${stop.name}</span>
+              <span class="stop-id">${stop.id}</span>
+            </div>
+            <div style="font-weight:bold; color:#666; font-size:11px;">${label}</div>
+          `;
+          listEl.appendChild(div);
+        });
+
+        // 選択されたバス停マーカーを強調
+        document
+          .querySelectorAll(".stop-marker-container")
+          .forEach((el) => el.classList.remove("selected"));
+        selectedStops.forEach((s) => {
+          if (stopMarkers[s.id]) {
+            stopMarkers[s.id].getElement().classList.add("selected");
+          }
+        });
       }
 
       function drawRoute() {
@@ -585,30 +656,53 @@
       }
 
       function undo() {
-        if (waypoints.length <= 1) return;
+        if (waypoints.length === 0) return;
+
+        // 最後の追加がバス停だった場合
+        const lastMarkerObj = markers[markers.length - 1]; // markersは segments と対応 (最初の1点目を除く)
+
+        // 最初の1点（始点バス停）だけの場合
+        if (waypoints.length === 1) {
+          waypoints = [];
+          selectedStops = [];
+          segments = [];
+          markers = [];
+          updateStopListUI();
+          drawRoute(); // クリア
+          updateOutput();
+          return;
+        }
+
+        // 経路セグメントがある場合
         waypoints.pop();
         segments.pop();
-        const marker = markers.pop();
-        if (marker) marker.remove();
+
+        if (lastMarkerObj) {
+          if (lastMarkerObj.type === "waypoint") {
+            lastMarkerObj.marker.remove();
+          } else if (lastMarkerObj.type === "stop") {
+            selectedStops.pop();
+            updateStopListUI();
+          }
+          markers.pop();
+        }
+
         drawRoute();
         updateOutput();
       }
 
       function resetAll() {
-        startStopId = null;
-        endStopId = null;
+        selectedStops = [];
         waypoints = [];
         segments = [];
-        markers.forEach((m) => m.remove());
+        markers.forEach((m) => {
+          if (m.marker) m.marker.remove();
+        });
         markers = [];
-        document.getElementById("start-info").innerText = "未選択";
-        document.getElementById("end-info").innerText = "未選択";
+
         document.getElementById("output").value = "";
-        document
-          .querySelectorAll(".stop-marker-container")
-          .forEach((el) => el.classList.remove("selected"));
-        currentStep = "START";
-        updateStepUI();
+        updateStopListUI();
+
         if (map.getSource("route"))
           map
             .getSource("route")
@@ -616,14 +710,30 @@
       }
 
       function updateOutput() {
-        if (!startStopId || !endStopId) return;
+        if (selectedStops.length < 2) {
+          document.getElementById("output").value = "";
+          document.getElementById("copy-btn").disabled = true;
+          return;
+        }
+
         let combined = [];
-        segments.forEach((seg) => {
+        let currentIndex = 0;
+        let stopIndices = [0]; // 始点のインデックスは常に0
+
+        segments.forEach((seg, i) => {
           const s = [...seg];
-          if (combined.length > 0) s.shift();
+          if (combined.length > 0) s.shift(); // 前のセグメントの最後尾と重複するので削除
+
           combined = combined.concat(s);
+
+          // markers[i] は segments[i] の終点に対応する情報を持っている
+          if (markers[i] && markers[i].type === "stop") {
+            stopIndices.push(combined.length - 1);
+          }
         });
-        const patternKey = `${startStopId}|...|${endStopId}`;
+
+        // キーの生成: ID1|...|ID2|...|ID3
+        const patternKey = selectedStops.map((s) => s.id).join("|...|");
 
         // 読みやすい形式に整形
         const coordsStr = combined
@@ -633,24 +743,11 @@
     "coordinates": [
 ${coordsStr}
     ],
-    "stop_indices": [0, ${combined.length - 1}]
+    "stop_indices": [${stopIndices.join(", ")}]
   }`;
 
         document.getElementById("output").value = jsonStr;
-      }
-
-      function updateStepUI() {
-        document
-          .querySelectorAll(".step-container")
-          .forEach((el) => el.classList.remove("active"));
-        if (currentStep === "START")
-          document.getElementById("step-1").classList.add("active");
-        if (currentStep === "DRAWING")
-          document.getElementById("step-2").classList.add("active");
-        if (currentStep === "COMPLETED")
-          document.getElementById("step-3").classList.add("active");
-        document.getElementById("copy-btn").disabled =
-          currentStep !== "COMPLETED";
+        document.getElementById("copy-btn").disabled = false;
       }
 
       function copyToClipboard() {

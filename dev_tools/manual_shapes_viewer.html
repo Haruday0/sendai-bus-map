@@ -152,7 +152,7 @@
         try {
           const [shapesRes, stopsRes] = await Promise.all([
             fetch("manual_shapes.json"),
-            fetch("../stops.json"),
+            fetch("../data/stops.json"),
           ]);
           manualShapes = await shapesRes.json();
           stopsData = await stopsRes.json();

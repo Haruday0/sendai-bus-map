@@ -479,14 +479,16 @@
       }
 
       async function init() {
-        stopsData = await fetch("stops.json").then((res) => res.json());
-        shapesData = await fetch("shapes.json").then((res) => res.json());
-        timetablesData = await fetch("timetables.json").then((res) =>
+        stopsData = await fetch("data/stops.json").then((res) => res.json());
+        shapesData = await fetch("data/shapes.json").then((res) => res.json());
+        timetablesData = await fetch("data/timetables.json").then((res) =>
           res.json(),
         );
-        calendarData = await fetch("calendar.json").then((res) => res.json());
-        routesData = await fetch("routes.json").then((res) => res.json());
-        extraData = await fetch("extra.json").then((res) => res.json());
+        calendarData = await fetch("data/calendar.json").then((res) =>
+          res.json(),
+        );
+        routesData = await fetch("data/routes.json").then((res) => res.json());
+        extraData = await fetch("data/extra.json").then((res) => res.json());
 
         map = new maplibregl.Map({
           container: "map",

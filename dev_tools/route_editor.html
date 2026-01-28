@@ -508,7 +508,7 @@
 
       async function loadData() {
         try {
-          const res = await fetch("../stops.json");
+          const res = await fetch("../data/stops.json");
           stopsData = await res.json();
           addStopMarkers();
         } catch (err) {

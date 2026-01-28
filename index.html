@@ -38,6 +38,7 @@
         cursor: pointer;
         pointer-events: auto !important;
         z-index: 1000;
+        touch-action: manipulation; /* タップ遅延解消、ピンチズーム対応 */
       }
 
       /* バス停の丸（16px） */
@@ -78,6 +79,7 @@
         cursor: pointer;
         pointer-events: auto !important;
         z-index: 5000;
+        touch-action: manipulation; /* タップ遅延解消、ピンチズーム対応 */
       }
 
       /* バスアイコン (Material Symbols) */
@@ -648,14 +650,13 @@
                 const rName = routesData[routeId]?.short_name || routeId;
                 el.innerHTML = `<div class="bus-label">[${rName}] ${formatHeadsign(trip.headsign)}</div><span class="material-symbols-outlined bus-icon">directions_bus</span>`;
 
-                const handler = (e) => {
+                // clickイベントのみ使用（Google Maps方式）
+                // touch-action: manipulationでタップ遅延解消済み
+                // ピンチズーム時はclickイベントが発火しないため誤反応しない
+                el.addEventListener("click", (e) => {
                   e.stopPropagation();
-                  // タッチ時のゴーストクリック（背後の要素やパネル内要素への誤反応）を防止
-                  if (e.type === "touchstart") e.preventDefault();
                   selectBus(trip.headsign, tripId, routeId);
-                };
-                el.addEventListener("click", handler);
-                el.addEventListener("touchstart", handler, { passive: false });
+                });
 
                 busMarkers[tripId] = new maplibregl.Marker({
                   element: el,
@@ -746,13 +747,13 @@
             .setLngLat([stop.lng, stop.lat])
             .addTo(map);
 
-          const handler = (e) => {
+          // clickイベントのみ使用（Google Maps方式）
+          // touch-action: manipulationでタップ遅延解消済み
+          // ピンチズーム時はclickイベントが発火しないため誤反応しない
+          el.addEventListener("click", (e) => {
             e.stopPropagation();
-            if (e.type === "touchstart") e.preventDefault();
             showNextBuses(id);
-          };
-          el.addEventListener("click", handler);
-          el.addEventListener("touchstart", handler, { passive: false });
+          });
           stopMarkers.push(marker);
         });
       }

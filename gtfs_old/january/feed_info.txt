@@ -1,0 +1,2 @@
+feed_publisher_name,feed_publisher_url,feed_lang,feed_start_date,feed_end_date,feed_version
+仙台市交通局,https://www.kotsu.city.sendai.jp/bus/index.html,ja,20260101,20260131,20260101_20260131

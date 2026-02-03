@@ -5,11 +5,13 @@ const path = require("path");
 
 // フォルダパスの設定
 const inputDir = "gtfs_raw";
-const outputDir = ".";
+const outputDir = "data";
 
 async function start() {
-  console.log("🚀 全路線の解析と道路形状の生成を開始します...");
-  console.log("※全路線の処理には10分以上かかる場合があります。");
+  if (!fs.existsSync(outputDir)) {
+    fs.mkdirSync(outputDir);
+  }
+  console.log("解析と形状生成を開始します...");
 
   const read = (file) => {
     const filePath = path.join(inputDir, file);
@@ -28,6 +30,11 @@ async function start() {
   const stopTimes = read("stop_times.txt");
   const stops = read("stops.txt");
   const trips = read("trips.txt");
+
+  if (routes.length === 0) {
+    console.error("Error: gtfs_raw フォルダにデータがありません。");
+    return;
+  }
 
   // 全ての Route ID を取得
   const targetRouteIds = routes.map((r) => r.route_id);
@@ -121,23 +128,54 @@ async function start() {
     manualShapes = JSON.parse(fs.readFileSync(manualShapesPath, "utf-8"));
   }
 
+  // 既存の shapes.json を読み込み（再利用のため）
+  const existingShapesPath = path.join(process.cwd(), "data", "shapes.json");
+  let existingShapes = {};
+  if (fs.existsSync(existingShapesPath)) {
+    existingShapes = JSON.parse(fs.readFileSync(existingShapesPath, "utf-8"));
+  }
+
   const shapesJson = {};
-  console.log(`🌐 ${shapesToGenerate.size} パターンの道路形状を生成します...`);
+  console.log(`${shapesToGenerate.size} パターンの道路形状を確認中...`);
   let counter = 1;
+  let reusedCount = 0;
+  let manualCount = 0;
+  let generatedCount = 0;
+
   for (const [patternKey, info] of shapesToGenerate) {
     if (manualShapes[patternKey]) {
       process.stdout.write(
-        `\r   [${counter}/${shapesToGenerate.size}] [手動データを使用] ${info.headsign} 行...      `,
+        `\r   [${counter}/${shapesToGenerate.size}] [手動] ${info.headsign}...      `,
       );
       shapesJson[patternKey] = manualShapes[patternKey];
+      manualCount++;
       counter++;
       continue;
     }
 
+    if (existingShapes[patternKey]) {
+      process.stdout.write(
+        `\r   [${counter}/${shapesToGenerate.size}] [再利用] ${info.headsign}...      `,
+      );
+      shapesJson[patternKey] = existingShapes[patternKey];
+      reusedCount++;
+      counter++;
+      continue;
+    }
+
+    generatedCount++;
     process.stdout.write(
-      `\r   [${counter}/${shapesToGenerate.size}] 生成中: ${info.headsign} 行...      `,
+      `\r   [${counter}/${shapesToGenerate.size}] [新規生成] ${info.headsign}...      `,
     );
-    const stopCoords = info.stops.map((st) => stopsJson[st.stop_id]);
+    const stopCoords = info.stops
+      .map((st) => stopsJson[st.stop_id])
+      .filter((c) => c);
+
+    if (stopCoords.length < 2) {
+      counter++;
+      continue;
+    }
+
     let fullCoordinates = [];
     let stopIndices = [];
     const chunkSize = 20;
@@ -153,7 +191,12 @@ async function start() {
           if (fullCoordinates.length > 0) segmentCoords.shift();
           fullCoordinates = fullCoordinates.concat(segmentCoords);
         }
-      } catch (e) {}
+      } catch (e) {
+        console.error(`\nOSRM Error: ${e.message}`);
+        const straight = chunk.map((c) => [c.lng, c.lat]);
+        if (fullCoordinates.length > 0) straight.shift();
+        fullCoordinates = fullCoordinates.concat(straight);
+      }
     }
 
     stopIndices = [];
@@ -177,93 +220,79 @@ async function start() {
       coordinates: fullCoordinates,
       stop_indices: stopIndices,
     };
-    // 1.5秒待機 (無料サーバーをパンクさせないためのマナー)
+
+    // 新規生成時のみ待機
     await new Promise((r) => setTimeout(r, 1500));
     counter++;
   }
 
-  // 2. shapes.json を全ルートについて再生成（各系統、各行き先、各運行パターンごと）
+  console.log(
+    `\n✅ 再利用: ${reusedCount} 件 / 新規生成: ${generatedCount} 件`,
+  );
+
+  // --- 高速パッチ & 最終データ生成 ---
+  console.log("\n🚀 ルートの最適化（パッチ適用）を行っています...");
   const finalShapes = {};
 
-  // 部分置換データの準備（A|...|B 形式を抽出）
+  // 部分置換データの準備（A|...|B 形式）
   const segmentOverrides = {};
   Object.entries(manualShapes).forEach(([key, data]) => {
     if (key.includes("|...|")) {
-      const [startId, endId] = key.split("|...|");
-      segmentOverrides[`${startId}|${endId}`] = data.coordinates;
-    } else {
-      // 通常のPatterKey完全一致データはshapesJsonに既に含まれている
-      // finalShapes[key] = data; // この行は不要、shapesJsonからコピーされる
+      const stopIdsInTemplate = key.split("|...|");
+      if (
+        data.stop_indices &&
+        data.stop_indices.length === stopIdsInTemplate.length
+      ) {
+        for (let i = 0; i < stopIdsInTemplate.length - 1; i++) {
+          const startId = stopIdsInTemplate[i];
+          const endId = stopIdsInTemplate[i + 1];
+          const startIdx = data.stop_indices[i];
+          const endIdx = data.stop_indices[i + 1];
+          const segmentCoords = data.coordinates.slice(startIdx, endIdx + 1);
+          segmentOverrides[`${startId}|${endId}`] = segmentCoords;
+        }
+      } else {
+        const [startId, endId] = stopIdsInTemplate;
+        segmentOverrides[`${startId}|${endId}`] = data.coordinates;
+      }
     }
   });
 
-  // shapesJsonを元にfinalShapesを初期化
-  for (const [patternKey, data] of Object.entries(shapesJson)) {
-    finalShapes[patternKey] = { ...data }; // コピーして変更に備える
-  }
+  // 全パターンの適用
+  Object.keys(shapesJson).forEach((patternKey) => {
+    // 1. 完全一致の manualShapes があれば最優先
+    if (manualShapes[patternKey] && !patternKey.includes("|...|")) {
+      finalShapes[patternKey] = manualShapes[patternKey];
+      return;
+    }
 
-  // shapesToGenerate を routeId -> headsign -> patternKey の構造に変換
-  const routeData = {};
-  for (const [patternKey, info] of shapesToGenerate) {
-    if (!routeData[info.route_id]) routeData[info.route_id] = {};
-    if (!routeData[info.route_id][info.headsign])
-      routeData[info.route_id][info.headsign] = {};
-    routeData[info.route_id][info.headsign][patternKey] = {
-      coordinates: shapesJson[patternKey].coordinates,
-      stop_indices: shapesJson[patternKey].stop_indices,
-      stops: info.stops, // 元のstops情報も必要
+    // 参照を切るためにディープコピー（重要！）
+    let current = {
+      coordinates: [...shapesJson[patternKey].coordinates],
+      stop_indices: [...shapesJson[patternKey].stop_indices],
     };
-  }
 
-  Object.entries(routeData).forEach(([routeId, destinations]) => {
-    Object.entries(destinations).forEach(([destName, patterns]) => {
-      Object.entries(patterns).forEach(([patternKey, pattern]) => {
-        // すでに完全一致の manualShapes がある場合はスキップ（上記でshapesJsonに代入済み）
-        if (manualShapes[patternKey] && !patternKey.includes("|...|")) {
-          finalShapes[patternKey] = manualShapes[patternKey];
-          return;
+    const stopIds = patternKey.split("|");
+
+    // 2. 部分置換（セグメント上書き）の適用
+    Object.entries(segmentOverrides).forEach(([segKey, newCoords]) => {
+      const [startId, endId] = segKey.split("|");
+      const startIndex = stopIds.indexOf(startId);
+      const endIndex = stopIds.indexOf(endId);
+
+      if (startIndex !== -1 && endIndex !== -1 && startIndex < endIndex) {
+        const startCoordIdx = current.stop_indices[startIndex];
+        const endCoordIdx = current.stop_indices[endIndex];
+        const head = current.coordinates.slice(0, startCoordIdx);
+        const tail = current.coordinates.slice(endCoordIdx + 1);
+        current.coordinates = [...head, ...newCoords, ...tail];
+        const diff = newCoords.length - (endCoordIdx - startCoordIdx + 1);
+        for (let i = endIndex; i < current.stop_indices.length; i++) {
+          current.stop_indices[i] += diff;
         }
-
-        let currentCoordinates = [...pattern.coordinates]; // 変更可能なコピー
-        let currentStopIndices = [...pattern.stop_indices]; // 変更可能なコピー
-        const stopIds = patternKey.split("|");
-
-        // --- 部分置換（セグメント上書き）の適用 ---
-        Object.entries(segmentOverrides).forEach(([segKey, newCoords]) => {
-          const [startId, endId] = segKey.split("|");
-          const startIndex = stopIds.indexOf(startId);
-          const endIndex = stopIds.indexOf(endId);
-
-          // 両方のバス停が含まれ、かつ正しい順序である場合のみ置換
-          if (startIndex !== -1 && endIndex !== -1 && startIndex < endIndex) {
-            console.log(
-              `Applying segment override [${segKey}] to PatternKey: ${patternKey.substring(0, 50)}...`,
-            );
-
-            // 既存の shapes.json から、置換対象となる区間の座標インデックスを特定
-            const startCoordIdx = currentStopIndices[startIndex];
-            const endCoordIdx = currentStopIndices[endIndex];
-
-            // 座標列を差し替え
-            const head = currentCoordinates.slice(0, startCoordIdx);
-            const tail = currentCoordinates.slice(endCoordIdx + 1);
-            currentCoordinates = [...head, ...newCoords, ...tail];
-
-            // この上書きによって座標数が変わるため、stop_indices を再計算する必要がある
-            // 単純化のため、ここでは「置換された区間以降」のインデックスをずらす処理を行う
-            const diff = newCoords.length - (endCoordIdx - startCoordIdx + 1);
-            for (let i = endIndex; i < currentStopIndices.length; i++) {
-              currentStopIndices[i] += diff;
-            }
-          }
-        });
-
-        finalShapes[patternKey] = {
-          coordinates: currentCoordinates,
-          stop_indices: currentStopIndices,
-        };
-      });
+      }
     });
+    finalShapes[patternKey] = current;
   });
 
   const extraJson = { offices: officeMap, calendar_dates: calendarDates };
@@ -273,11 +302,11 @@ async function start() {
   write("stops.json", stopsJson);
   write("routes.json", routesJson);
   write("timetables.json", timetablesJson);
-  write("shapes.json", shapesJson);
+  write("shapes.json", finalShapes); // <--- ここを finalShapes に修正！
   write("calendar.json", calendarJson);
   write("extra.json", extraJson);
 
-  console.log("\n\n✅ 完了！すべての路線のデータが作成されました！");
+  console.log("\n✅ 完了！すべての路線のデータが爆速で作成されました！");
 }
 
 start().catch(console.error);

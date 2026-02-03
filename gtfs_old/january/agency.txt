@@ -1,0 +1,2 @@
+agency_id,agency_name,agency_url,agency_timezone,agency_lang,agency_phone,agency_fare_url,agency_email
+8000020041009,仙台市交通局,https://www.kotsu.city.sendai.jp/bus/index.html,Asia/Tokyo,ja,022-224-5111,,

@@ -354,38 +354,6 @@
       }
 
       /* 右下クレジット */
-      #attribution-container {
-        position: absolute;
-        bottom: 10px;
-        right: 10px;
-        z-index: 5500;
-        display: flex;
-        align-items: center;
-        pointer-events: auto; /* クリックできるようにする */
-      }
-      #attribution-text {
-        display: none; /* 初期は隠す */
-        background: rgba(255, 255, 255, 0.85);
-        padding: 2px 8px;
-        border-radius: 4px;
-        margin-right: 5px;
-        font-size: 11px;
-        border: 1px solid #ccc;
-        box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
-      }
-      #attribution-btn {
-        width: 20px;
-        height: 20px;
-        background: rgba(255, 255, 255, 0.85);
-        border-radius: 50%;
-        border: 1px solid #ccc;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        cursor: pointer;
-        box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
-        padding: 0;
-      }
       .material-symbols-outlined {
         font-variation-settings:
           "FILL" 0,
@@ -395,29 +363,9 @@
         display: inline-block;
         vertical-align: middle;
       }
-      .attribution-link {
-        color: #555;
-        text-decoration: none;
-      }
     </style>
   </head>
   <body>
-    <!-- 自作クレジット -->
-    <div id="attribution-container">
-      <div id="attribution-text">
-        <a
-          href="https://maps.gsi.go.jp/development/ichiran.html"
-          target="_blank"
-          rel="noopener"
-          class="attribution-link"
-          >国土地理院</a
-        >
-      </div>
-      <div id="attribution-btn" onclick="toggleAttribution()">
-        <span class="material-symbols-outlined">info</span>
-      </div>
-    </div>
-
     <div id="clock-container">
       <div id="clock-date"></div>
       <div id="clock-time"></div>
@@ -474,12 +422,6 @@
       let currentPanelTrip = null;
       let activeRouteStopIds = [];
 
-      // クレジット表示の切り替え関数
-      function toggleAttribution() {
-        const text = document.getElementById("attribution-text");
-        text.style.display = text.style.display === "block" ? "none" : "block";
-      }
-
       async function init() {
         stopsData = await fetch("data/stops.json").then((res) => res.json());
         shapesData = await fetch("data/shapes.json").then((res) => res.json());
@@ -505,7 +447,8 @@
                   "https://cyberjapandata.gsi.go.jp/xyz/pale/{z}/{x}/{y}.png",
                 ],
                 tileSize: 256,
-                attribution: "", // 空にして自作要素を使う
+                attribution:
+                  '<a href="https://maps.gsi.go.jp/development/ichiran.html" target="_blank">地理院地図</a>',
                 maxzoom: 18,
               },
               "gsi-ortho": {
@@ -514,7 +457,8 @@
                   "https://cyberjapandata.gsi.go.jp/xyz/ort/{z}/{x}/{y}.jpg",
                 ],
                 tileSize: 256,
-                attribution: "",
+                attribution:
+                  '<a href="https://maps.gsi.go.jp/development/ichiran.html" target="_blank">地理院地図</a>',
                 maxzoom: 18,
               },
             },
@@ -530,7 +474,7 @@
           },
           center: [140.8824, 38.2601],
           zoom: 15,
-          attributionControl: false, // デフォルトを完全に無効化
+          attributionControl: true,
         });
 
         map.on("load", () => {

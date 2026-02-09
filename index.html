@@ -159,7 +159,7 @@
       /* PC表示（左上フローティング） */
       @media (min-width: 768px) {
         #bottom-panel {
-          top: 20px;
+          top: 80px; /* 検索バー(20+52)の下に配置 */
           bottom: auto;
           left: 20px;
           max-height: calc(100vh - 120px);
@@ -239,7 +239,6 @@
       .panel-content {
         flex: 1;
         overflow-y: auto;
-        scroll-behavior: smooth;
       }
       .item-row {
         padding: 18px 24px;
@@ -270,6 +269,18 @@
         border-left: 6px solid #4caf50;
         padding-left: 18px;
       }
+      .item-row.past:hover {
+        background-color: #f0f0f0;
+      }
+      .item-row.highlight:hover {
+        background-color: #fff9c4;
+      }
+      .item-row.next-stop:hover {
+        background-color: #c8e6c9;
+      }
+      .item-row:hover {
+        background-color: #e8f5e9;
+      }
       .item-time {
         width: 65px;
         font-size: 18px;
@@ -278,24 +289,48 @@
       .item-info {
         flex: 1;
         font-size: 16px;
+        line-height: 1.4;
+      }
+      .item-via {
+        font-size: 12px;
+        color: #444;
+        margin-bottom: 2px;
+        font-weight: normal;
       }
       .item-platform {
         font-size: 11px;
         font-weight: normal;
-        color: #666;
+        color: #888;
         margin-top: 2px;
       }
 
-      /* レイヤーメニュー UI (route_editor.htmlと共通) */
+      /* レイヤーコントロール */
       #layer-control-container {
         position: absolute;
-        top: 15px; /* 上に詰める */
-        right: 15px;
+        top: 20px;
+        right: 20px;
         z-index: 9000;
+      }
+
+      @media (max-width: 767px) {
+        #layer-control-container {
+          top: 65px; /* 検索バー(10+48)のすぐ下 */
+          right: 10px;
+          bottom: auto;
+          transition:
+            opacity 0.2s,
+            visibility 0.2s;
+        }
+        /* 検索候補が表示されている時はレイヤーボタンを隠す */
+        body.is-searching #layer-control-container {
+          opacity: 0;
+          visibility: hidden;
+          pointer-events: none;
+        }
       }
       #layer-btn {
         background: white;
-        width: 40px;
+        width: 40px; /* 元のサイズに復元 */
         height: 40px;
         border-radius: 50%;
         box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
@@ -311,7 +346,7 @@
         transform: scale(1.05);
       }
       #layer-btn .material-symbols-outlined {
-        font-size: 24px;
+        font-size: 24px; /* 元のサイズに復元 */
         color: #333;
       }
 
@@ -354,6 +389,130 @@
       }
 
       /* 右下クレジット */
+      /* 検索コンテナ（左上） */
+      #search-container {
+        position: absolute;
+        top: 20px;
+        left: 20px;
+        z-index: 7000;
+        width: calc(100% - 40px);
+        max-width: 360px;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        pointer-events: none;
+      }
+
+      @media (max-width: 767px) {
+        #search-container {
+          top: 10px;
+          left: 10px;
+          width: calc(100% - 20px);
+          max-width: none; /* max-widthを解除して幅いっぱいに */
+        }
+      }
+
+      .search-box {
+        background: white;
+        border-radius: 28px;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+        display: flex;
+        align-items: center;
+        padding: 4px 16px;
+        pointer-events: auto;
+        border: 1px solid #eee;
+      }
+
+      .search-box input {
+        border: none;
+        outline: none;
+        padding: 10px;
+        font-size: 16px;
+        flex-grow: 1;
+        background: transparent;
+      }
+
+      .search-box .material-symbols-outlined {
+        color: #666;
+        user-select: none;
+      }
+
+      #search-results {
+        background: white;
+        border-radius: 12px;
+        box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
+        max-height: 400px; /* 5件表示時にスクロールが出ないよう十分な高さを確保 */
+        overflow-y: auto;
+        display: none;
+        pointer-events: auto;
+        border: 1px solid #eee;
+      }
+
+      .search-item {
+        padding: 10px 16px;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        border-bottom: 1px solid #f5f5f5;
+        gap: 12px;
+      }
+
+      .search-item:last-child {
+        border-bottom: none;
+      }
+
+      .search-item:hover {
+        background: #e8f5e9;
+      }
+
+      .search-item-info {
+        flex-grow: 1;
+        display: flex;
+        flex-direction: column;
+      }
+
+      .search-item-name {
+        font-weight: bold;
+        color: #333;
+        font-size: 15px;
+      }
+
+      .search-item-yomi {
+        font-size: 12px;
+        color: #888;
+        margin-top: 2px;
+      }
+
+      .search-item .material-symbols-outlined {
+        color: #999;
+        font-size: 20px;
+      }
+
+      .search-item .delete-btn {
+        padding: 8px;
+        border-radius: 50%;
+        color: #999;
+        cursor: pointer;
+        transition:
+          background 0.2s,
+          color 0.2s;
+      }
+
+      .search-item .delete-btn:hover {
+        background: rgba(0, 0, 0, 0.08);
+        color: #666;
+      }
+
+      .results-header {
+        padding: 8px 16px;
+        font-size: 11px;
+        font-weight: bold;
+        color: #888;
+        background: #fcfcfc;
+        border-bottom: 1px solid #f5f5f5;
+      }
+
+      /* 右下クレジット等のMaterial Symbols */
       .material-symbols-outlined {
         font-variation-settings:
           "FILL" 0,
@@ -372,6 +531,29 @@
     </div>
 
     <!-- レイヤー切り替え -->
+    <div id="search-container">
+      <div class="search-box">
+        <span class="material-symbols-outlined">search</span>
+        <input
+          type="text"
+          id="search-input"
+          placeholder="バス停を検索"
+          oninput="handleSearch(this.value)"
+          onfocus="showSearchHistory()"
+          onclick="showSearchHistory()"
+        />
+        <span
+          class="material-symbols-outlined"
+          id="search-clear"
+          style="cursor: pointer; display: none"
+          onclick="clearSearch()"
+        >
+          close
+        </span>
+      </div>
+      <div id="search-results"></div>
+    </div>
+
     <div id="layer-control-container">
       <div
         id="layer-btn"
@@ -504,9 +686,12 @@
         });
 
         map.on("moveend", updateStopMarkers);
+        map.on("movestart", hideSearchResults); // 移動開始時に検索結果を閉じる
         map.on("click", (e) => {
-          if (e.originalEvent.target.className.includes("maplibregl-canvas"))
+          if (e.originalEvent.target.className.includes("maplibregl-canvas")) {
             closePanel();
+            hideSearchResults(); // クリック時も閉じる
+          }
         });
       }
 
@@ -732,6 +917,7 @@
       }
 
       function showNextBuses(stopId) {
+        hideSearchResults(); // 要素をタップした際にも検索結果を閉じる
         const stop = stopsData[stopId];
         currentPanelTrip = null;
         document.getElementById("panel-via").innerText = "";
@@ -767,6 +953,7 @@
                 route_id: rid,
                 trip_id: tid,
                 headsign: trip.headsign,
+                via: trip.via,
                 platform: pole.platform,
                 actual_stop_id: st.stop_id,
                 is_past: st.time < nowStr,
@@ -799,10 +986,13 @@
             const platformLabel = bus.platform
               ? `<div class="item-platform">${bus.platform}番のりば</div>`
               : "";
+            const viaLabel = bus.via
+              ? `<div class="item-via">${bus.via} 経由</div>`
+              : "";
             div.innerHTML = `<div class="item-time">${bus.time.substring(
               0,
               5,
-            )}</div><div class="item-info">${
+            )}</div><div class="item-info">${viaLabel}${
               routesData[bus.route_id]?.short_name || bus.route_id
             }系統 ${formatHeadsign(bus.headsign)}${platformLabel}</div>`;
             div.onclick = () =>
@@ -815,21 +1005,11 @@
             content.appendChild(div);
           });
 
-          // 自動スクロール：ターゲットが画面の上から1/3くらいに来るように調整
           if (targetScrollEl) {
-            setTimeout(() => {
-              // offsetTop から コンテナの高さの 1/3 を引くことで、ターゲットを上部に持ってくる（少し過去が見える）
-              const targetPos =
-                targetScrollEl.offsetTop - content.clientHeight / 3;
-              content.scrollTo({ top: targetPos, behavior: "smooth" });
-            }, 100);
+            content.scrollTop =
+              targetScrollEl.offsetTop - content.clientHeight / 3;
           } else if (allArrivals.length > 0) {
-            // 全て過去の場合は一番下へ（または一番上でもよいが、とりあえずそのまま）
-            // ユーザーの要望は「次」の話なので、全て終わっている場合は特段指定なしだが、
-            // 一応最後の便が見えるようにしておくと親切かもしれない
-            setTimeout(() => {
-              content.scrollTop = content.scrollHeight;
-            }, 100);
+            content.scrollTop = content.scrollHeight;
           }
         }
         document.getElementById("bottom-panel").classList.add("open");
@@ -837,6 +1017,7 @@
       }
 
       async function selectBus(headsign, tripId, routeId, highlightId = null) {
+        hideSearchResults(); // バスを選択した際にも検索結果を閉じる
         const trip = timetablesData[routeId][tripId];
         currentPanelTrip = { tripId, routeId, highlightId };
         activeRouteStopIds = trip.stops.map((s) => s.stop_id);
@@ -871,7 +1052,10 @@
           const platformLabel = s.platform
             ? `<div class="item-platform">${s.platform}番のりば</div>`
             : "";
-          div.innerHTML = `<div class="item-time">${st.time.substring(0, 5)}</div><div class="item-info">${s ? s.name : "..."}${platformLabel}</div>`;
+          const viaLabel = st.via
+            ? `<div class="item-via">${st.via} 経由</div>`
+            : "";
+          div.innerHTML = `<div class="item-time">${st.time.substring(0, 5)}</div><div class="item-info">${viaLabel}${s ? s.name : "..."}${platformLabel}</div>`;
           div.onclick = (e) => {
             e.stopPropagation();
             const isMobile = window.innerWidth < 768;
@@ -931,10 +1115,8 @@
         updateStopMarkers();
 
         if (targetScrollEl) {
-          setTimeout(() => {
-            content.scrollTop =
-              targetScrollEl.offsetTop - content.clientHeight / 2 + 40;
-          }, 100);
+          content.scrollTop =
+            targetScrollEl.offsetTop - content.clientHeight / 2 + 40;
         }
       }
 
@@ -970,6 +1152,177 @@
         updateStopMarkers();
       }
       init();
+      // --- 検索機能 ---
+      function handleSearch(query) {
+        const resultsEl = document.getElementById("search-results");
+        const clearEl = document.getElementById("search-clear");
+        if (!query || query.trim().length === 0) {
+          showSearchHistory(); // クエリが空なら履歴を表示
+          clearEl.style.display = "none";
+          return;
+        }
+
+        clearEl.style.display = "block";
+        const q = query.toLowerCase();
+
+        // バス停名でグループ化（同じ名前の複数乗り場を1つにまとめる）
+        const stopGroups = {};
+        Object.keys(stopsData).forEach((id) => {
+          const s = stopsData[id];
+          if (!stopGroups[s.name]) {
+            stopGroups[s.name] = {
+              id: id, // 代表ID
+              name: s.name,
+              yomi: s.yomi,
+              lat: s.lat,
+              lng: s.lng,
+            };
+          }
+        });
+
+        const candidates = Object.values(stopGroups).filter(
+          (s) => s.name.includes(q) || s.yomi.includes(q),
+        );
+
+        // 優先順位付け (Tier 1: 前方一致, Tier 2: 部分一致)
+        const tier1 = candidates.filter(
+          (s) => s.name.startsWith(q) || s.yomi.startsWith(q),
+        );
+        const tier2 = candidates.filter(
+          (s) => !tier1.includes(s), // tier1に含まれないもの
+        );
+
+        // 各ティア内で名前の短い順にソート
+        const sortByLength = (a, b) => a.name.length - b.name.length;
+        tier1.sort(sortByLength);
+        tier2.sort(sortByLength);
+
+        const results = [...tier1, ...tier2].slice(0, 5); // 最大5件
+
+        if (results.length > 0) {
+          document.body.classList.add("is-searching");
+          resultsEl.innerHTML = '<div class="results-header">検索結果</div>';
+          results.forEach((s) => {
+            const div = document.createElement("div");
+            div.className = "search-item";
+            div.onclick = () => selectSearchStop(s.id);
+            div.innerHTML = `
+              <span class="material-symbols-outlined">location_on</span>
+              <div class="search-item-info">
+                <div class="search-item-name">${s.name}</div>
+                <div class="search-item-yomi">${s.yomi}</div>
+              </div>
+            `;
+            resultsEl.appendChild(div);
+          });
+          resultsEl.style.display = "block";
+        } else {
+          document.body.classList.remove("is-searching");
+          resultsEl.style.display = "none";
+        }
+      }
+
+      // --- 履歴管理 ---
+      const HISTORY_KEY = "bus_search_history";
+
+      function getSearchHistory() {
+        try {
+          return JSON.parse(localStorage.getItem(HISTORY_KEY) || "[]");
+        } catch {
+          return [];
+        }
+      }
+
+      function saveSearchHistory(stopId) {
+        let history = getSearchHistory();
+        history = history.filter((id) => id !== stopId); // 重複削除
+        history.unshift(stopId); // 先頭に追加
+        localStorage.setItem(HISTORY_KEY, JSON.stringify(history.slice(0, 5)));
+      }
+
+      function removeSearchHistory(e, stopId) {
+        e.stopPropagation();
+        let history = getSearchHistory();
+        history = history.filter((id) => id !== stopId);
+        localStorage.setItem(HISTORY_KEY, JSON.stringify(history));
+        showSearchHistory();
+      }
+
+      function showSearchHistory() {
+        closePanel(); // 検索操作開始時にパネルを閉じる
+        const input = document.getElementById("search-input");
+        const resultsEl = document.getElementById("search-results");
+
+        // 入力がある場合は検索ロジックに任せる
+        if (input.value.trim().length > 0) return;
+
+        const historyIds = getSearchHistory();
+        if (historyIds.length === 0) {
+          resultsEl.style.display = "none";
+          document.body.classList.remove("is-searching");
+          return;
+        }
+
+        document.body.classList.add("is-searching");
+        resultsEl.innerHTML = '<div class="results-header">最近の検索</div>';
+        historyIds.forEach((id) => {
+          const s = stopsData[id];
+          if (!s) return;
+          const div = document.createElement("div");
+          div.className = "search-item";
+          div.onclick = () => selectSearchStop(id);
+          div.innerHTML = `
+            <span class="material-symbols-outlined">history</span>
+            <div class="search-item-info">
+              <div class="search-item-name">${s.name}</div>
+              <div class="search-item-yomi">${s.yomi}</div>
+            </div>
+            <span class="material-symbols-outlined delete-btn" onclick="removeSearchHistory(event, '${id}')">close</span>
+          `;
+          resultsEl.appendChild(div);
+        });
+        resultsEl.style.display = "block";
+      }
+
+      function clearSearch() {
+        const input = document.getElementById("search-input");
+        input.value = "";
+        handleSearch("");
+      }
+
+      function selectSearchStop(stopId) {
+        const stop = stopsData[stopId];
+        saveSearchHistory(stopId); // 履歴に保存
+        hideSearchResults(); // リストを閉じる
+
+        map.flyTo({
+          center: [stop.lng, stop.lat],
+          zoom: 17,
+          essential: true,
+        });
+
+        showNextBuses(stopId);
+      }
+
+      function hideSearchResults() {
+        const resultsEl = document.getElementById("search-results");
+        if (resultsEl) {
+          resultsEl.style.display = "none";
+          document.body.classList.remove("is-searching");
+        }
+        // フォーカスを解除して仮想キーボードを閉じる
+        const input = document.getElementById("search-input");
+        if (input) {
+          input.blur();
+        }
+      }
+
+      // Mapの外側（特に検索結果以外の場所）をクリックしたら検索結果を閉じる
+      document.addEventListener("click", (e) => {
+        if (!e.target.closest("#search-container")) {
+          hideSearchResults();
+        }
+      });
     </script>
   </body>
 </html>

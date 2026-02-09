@@ -11,7 +11,7 @@ async function start() {
   if (!fs.existsSync(outputDir)) {
     fs.mkdirSync(outputDir);
   }
-  console.log("解析と形状生成を開始します...");
+  console.log("GTFSデータの解析およびジオメトリ生成プロセスを開始します...");
 
   const read = (file) => {
     const filePath = path.join(inputDir, file);
@@ -28,6 +28,7 @@ async function start() {
   const patterns = read("pattern_jp.txt");
   const routes = read("routes.txt");
   const stopTimes = read("stop_times.txt");
+  const translations = read("translations.txt");
   const stops = read("stops.txt");
   const trips = read("trips.txt");
 
@@ -39,10 +40,23 @@ async function start() {
   // 全ての Route ID を取得
   const targetRouteIds = routes.map((r) => r.route_id);
 
+  const stopYomiMap = {};
+  translations.forEach((t) => {
+    if (
+      t.table_name === "stops" &&
+      t.field_name === "stop_name" &&
+      t.language === "ja-Hrkt"
+    ) {
+      // field_value が元の名前（漢字など）、translation がひらがな
+      stopYomiMap[t.field_value] = t.translation;
+    }
+  });
+
   const stopsJson = {};
   stops.forEach((s) => {
     stopsJson[s.stop_id] = {
       name: s.stop_name,
+      yomi: stopYomiMap[s.stop_name] || "",
       lat: parseFloat(s.stop_lat),
       lng: parseFloat(s.stop_lon),
       platform: s.platform_code || "",
@@ -136,7 +150,9 @@ async function start() {
   }
 
   const shapesJson = {};
-  console.log(`${shapesToGenerate.size} パターンの道路形状を確認中...`);
+  console.log(
+    `${shapesToGenerate.size} 個の運行パターンについて、道路形状（ジオメトリ）の整合性を確認しています...`,
+  );
   let counter = 1;
   let reusedCount = 0;
   let manualCount = 0;
@@ -145,7 +161,7 @@ async function start() {
   for (const [patternKey, info] of shapesToGenerate) {
     if (manualShapes[patternKey]) {
       process.stdout.write(
-        `\r   [${counter}/${shapesToGenerate.size}] [手動] ${info.headsign}...      `,
+        `\r   [${counter}/${shapesToGenerate.size}] [MANUAL] ${info.headsign}...      `,
       );
       shapesJson[patternKey] = manualShapes[patternKey];
       manualCount++;
@@ -155,7 +171,7 @@ async function start() {
 
     if (existingShapes[patternKey]) {
       process.stdout.write(
-        `\r   [${counter}/${shapesToGenerate.size}] [再利用] ${info.headsign}...      `,
+        `\r   [${counter}/${shapesToGenerate.size}] [REUSED] ${info.headsign}...      `,
       );
       shapesJson[patternKey] = existingShapes[patternKey];
       reusedCount++;
@@ -165,7 +181,7 @@ async function start() {
 
     generatedCount++;
     process.stdout.write(
-      `\r   [${counter}/${shapesToGenerate.size}] [新規生成] ${info.headsign}...      `,
+      `\r   [${counter}/${shapesToGenerate.size}] [GENERATED] ${info.headsign}...      `,
     );
     const stopCoords = info.stops
       .map((st) => stopsJson[st.stop_id])
@@ -227,11 +243,13 @@ async function start() {
   }
 
   console.log(
-    `\n✅ 再利用: ${reusedCount} 件 / 新規生成: ${generatedCount} 件`,
+    `\n構成完了: 既存ジオメトリ再利用 ${reusedCount} 件 / 新規ジオメトリ生成 ${generatedCount} 件 / 手動定義適用 ${manualCount} 件`,
   );
 
   // --- 高速パッチ & 最終データ生成 ---
-  console.log("\n🚀 ルートの最適化（パッチ適用）を行っています...");
+  console.log(
+    "\n差分パッチを適用し、インクリメンタルなルート最適化を実行しています...",
+  );
   const finalShapes = {};
 
   // 部分置換データの準備（A|...|B 形式）
@@ -306,7 +324,9 @@ async function start() {
   write("calendar.json", calendarJson);
   write("extra.json", extraJson);
 
-  console.log("\n✅ 完了！すべての路線のデータが爆速で作成されました！");
+  console.log(
+    "\n全プロセスの実行が完了しました。最適化手法を用いてデータセットを正常に生成しました。",
+  );
 }
 
 start().catch(console.error);

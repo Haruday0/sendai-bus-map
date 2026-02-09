@@ -44,7 +44,9 @@ function patch() {
     }
   });
 
-  console.log("🚀 高速パッチを開始します...");
+  console.log(
+    "ジオメトリ整合性パッチの適用（インクリメンタル更新）を開始します...",
+  );
 
   let patchCount = 0;
   Object.keys(shapes).forEach((patternKey) => {
@@ -91,7 +93,7 @@ function patch() {
 
   fs.writeFileSync(shapesPath, JSON.stringify(shapes));
   console.log(
-    `\n✅ 完了！ ${patchCount} 個のルートを瞬時にアップデートしました。`,
+    `\nパッチの適用が正常に完了しました。計 ${patchCount} 件のルートセグメントをアップデートしました。`,
   );
 }
 
